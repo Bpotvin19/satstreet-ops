@@ -8,17 +8,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED = ROOT / "brand" / "claims-allowed.md"
-FORBIDDEN = ROOT / "brand" / "claims-forbidden.md"
 SCAN_DIRS = ("templates", "drafts", "prompts")
-SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".zip"}
-
-# A never-say list has to quote the phrases it bans, so scanning prompts/ for
-# those phrases flags the guardrails themselves. A file may opt out of the
-# phrase scan with this marker. It is still scanned for secrets, and every
-# other file in prompts/ is still scanned for phrases -- a prompt that tells a
-# model to make a forbidden claim must still fail.
-EXEMPT_MARKER = "claims-check: allow-forbidden-phrases"
+UNSCANNABLE_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".zip"}
 
 SECRET_PATTERNS = [
     re.compile(r"sk-[A-Za-z0-9]{20,}"),
@@ -43,48 +34,61 @@ def phrases_from_forbidden_table(text: str) -> list[str]:
     return phrases
 
 
-def iter_scan_files() -> list[Path]:
+def iter_scan_files(root: Path) -> list[Path]:
     files: list[Path] = []
     for name in SCAN_DIRS:
-        directory = ROOT / name
+        directory = root / name
         if not directory.exists():
             continue
         for path in directory.rglob("*"):
-            if path.is_file() and path.suffix.lower() not in SKIP_SUFFIXES:
+            if path.is_file():
                 files.append(path)
     return files
 
 
-def main() -> int:
+def check(root: Path) -> tuple[list[str], int, int]:
     errors: list[str] = []
+    allowed = root / "brand" / "claims-allowed.md"
+    forbidden = root / "brand" / "claims-forbidden.md"
 
-    if not ALLOWED.is_file():
+    if not allowed.is_file():
         errors.append("missing brand/claims-allowed.md")
     else:
-        allowed_text = ALLOWED.read_text(encoding="utf-8")
+        allowed_text = allowed.read_text(encoding="utf-8")
         if "**Status:**" not in allowed_text:
             errors.append("brand/claims-allowed.md is missing a Status header")
 
-    if not FORBIDDEN.is_file():
+    if not forbidden.is_file():
         errors.append("missing brand/claims-forbidden.md")
         forbidden_phrases: list[str] = []
     else:
         forbidden_phrases = phrases_from_forbidden_table(
-            FORBIDDEN.read_text(encoding="utf-8")
+            forbidden.read_text(encoding="utf-8")
         )
         if not forbidden_phrases:
             errors.append("brand/claims-forbidden.md has no parseable phrases")
 
-    for path in iter_scan_files():
+    scan_files = iter_scan_files(root)
+    for path in scan_files:
+        rel = path.relative_to(root)
+        if path.suffix.lower() in UNSCANNABLE_SUFFIXES:
+            errors.append(
+                f"{rel}: unsupported binary format in claims-scanned directory"
+            )
+            continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        rel = path.relative_to(ROOT)
-        if EXEMPT_MARKER not in text:
-            for phrase in forbidden_phrases:
-                if re.search(re.escape(phrase), text, flags=re.IGNORECASE):
-                    errors.append(f"{rel}: forbidden phrase {phrase!r}")
+        for phrase in forbidden_phrases:
+            if re.search(re.escape(phrase), text, flags=re.IGNORECASE):
+                errors.append(f"{rel}: forbidden phrase {phrase!r}")
         for pattern in SECRET_PATTERNS:
             if pattern.search(text):
                 errors.append(f"{rel}: looks like a secret; remove it")
+
+    return errors, len(forbidden_phrases), len(scan_files)
+
+
+def main() -> int:
+    errors, forbidden_count, scanned_count = check(ROOT)
 
     if errors:
         print("Claims CI failed:")
@@ -93,9 +97,9 @@ def main() -> int:
         return 1
 
     print("Claims CI passed.")
-    print(f"  allowed file: {ALLOWED.relative_to(ROOT)}")
-    print(f"  forbidden phrases loaded: {len(forbidden_phrases)}")
-    print(f"  draft files scanned: {len(iter_scan_files())}")
+    print("  allowed file: brand/claims-allowed.md")
+    print(f"  forbidden phrases loaded: {forbidden_count}")
+    print(f"  draft files scanned: {scanned_count}")
     return 0
 
 

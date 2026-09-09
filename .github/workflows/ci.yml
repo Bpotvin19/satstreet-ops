@@ -31,6 +31,9 @@ jobs:
       - name: Run claims checker
         run: python scripts/check_claims.py
 
+      - name: Run claims checker regression tests
+        run: python -m unittest discover -s tests -v
+
   actions-lint:
     name: Workflow lint
     runs-on: ubuntu-latest
