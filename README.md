@@ -1,8 +1,8 @@
 # satstreet-ops
 
-Private operating system for Satstreet internal marketing, sales, and compliance comms.
+Operating-system prototype for Satstreet internal marketing, sales, and compliance comms.
 
-This repository is the source of truth for **approved language**. Models (Grokbot, Claude, ChatGPT) draft from these files. Humans approve anything external.
+The status and approval log in each claims file govern whether wording may be used externally. Models may use DRAFT material only for internal drafting. Humans approve anything external.
 
 ## Layout
 
@@ -30,10 +30,14 @@ scripts/        CI checkers
 On every pull request and push to `main`:
 
 - `scripts/check_claims.py` confirms claims files exist and scans drafts for forbidden phrases
+- claims-scanned directories accept only explicitly supported UTF-8 text formats; every other format fails closed
+- matching applies Unicode compatibility normalization, removes zero-width formatting characters, and collapses whitespace
 - `actionlint` checks workflow YAML
 - Gitleaks scans for secrets
 
-Enable Actions on this private repo the first time if GitHub prompts you. Make the `CI` workflow a required status check on `main` once it is green.
+The checker is a guardrail, not semantic review. Homoglyph substitutions, paraphrases, images, and meaning expressed without a listed phrase may evade automated matching. Human Compliance review remains mandatory.
+
+The GitHub repository is currently public and personally owned. Confirm whether it should be private or transferred to a Satstreet organization before adding sensitive internal material. Make the `CI` workflow a required status check on `main` once it is green.
 
 ## Do not commit
 
