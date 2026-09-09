@@ -13,6 +13,13 @@ FORBIDDEN = ROOT / "brand" / "claims-forbidden.md"
 SCAN_DIRS = ("templates", "drafts", "prompts")
 SKIP_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf", ".zip"}
 
+# A never-say list has to quote the phrases it bans, so scanning prompts/ for
+# those phrases flags the guardrails themselves. A file may opt out of the
+# phrase scan with this marker. It is still scanned for secrets, and every
+# other file in prompts/ is still scanned for phrases -- a prompt that tells a
+# model to make a forbidden claim must still fail.
+EXEMPT_MARKER = "claims-check: allow-forbidden-phrases"
+
 SECRET_PATTERNS = [
     re.compile(r"sk-[A-Za-z0-9]{20,}"),
     re.compile(r"xai-[A-Za-z0-9]{20,}"),
@@ -71,9 +78,10 @@ def main() -> int:
     for path in iter_scan_files():
         text = path.read_text(encoding="utf-8", errors="replace")
         rel = path.relative_to(ROOT)
-        for phrase in forbidden_phrases:
-            if re.search(re.escape(phrase), text, flags=re.IGNORECASE):
-                errors.append(f"{rel}: forbidden phrase {phrase!r}")
+        if EXEMPT_MARKER not in text:
+            for phrase in forbidden_phrases:
+                if re.search(re.escape(phrase), text, flags=re.IGNORECASE):
+                    errors.append(f"{rel}: forbidden phrase {phrase!r}")
         for pattern in SECRET_PATTERNS:
             if pattern.search(text):
                 errors.append(f"{rel}: looks like a secret; remove it")

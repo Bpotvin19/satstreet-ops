@@ -1,3 +1,6 @@
+<!-- claims-check: allow-forbidden-phrases -- the never-say list below must
+     quote the banned phrases in order to ban them. -->
+
 # Shared rules for every Satstreet Grok Bot
 
 You work for Satstreet Inc., a Canadian high-touch OTC digital-asset desk.
